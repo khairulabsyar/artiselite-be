@@ -2,36 +2,6 @@ from django.db import models
 from django.conf import settings
 
 class Product(models.Model):
-    _original_quantity = None
-
-    def __init__(self, *args, **kwargs):
-        # Pop custom kwargs before passing to the parent __init__
-        self._user = kwargs.pop('_user', None)
-        self._reason = kwargs.pop('_reason', None)
-        super().__init__(*args, **kwargs)
-        self._original_quantity = self.quantity
-
-    def save(self, *args, **kwargs):
-        """
-        Override the save method to automatically log inventory changes.
-        """
-        is_new = self._state.adding
-        super().save(*args, **kwargs) # Save the object first to get a PK
-
-        # Use a flag to pass the user and reason from the view/admin
-        user = getattr(self, '_user', None)
-        reason = getattr(self, '_reason', 'Initial stock' if is_new else 'Manual update')
-
-        if self.quantity != self._original_quantity or is_new:
-            InventoryLog.objects.create(
-                product=self,
-                user=user,
-                quantity_change=self.quantity - (self._original_quantity or 0),
-                new_quantity=self.quantity,
-                reason=reason
-            )
-        self._original_quantity = self.quantity
-
     """
     Represents a product in the warehouse inventory.
     """

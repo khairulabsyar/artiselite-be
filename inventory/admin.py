@@ -8,15 +8,10 @@ class ProductAdmin(admin.ModelAdmin):
         Pass the user to the model's save method for logging.
         """
         obj._user = request.user
-        # The reason is handled by the model's save method default
         super().save_model(request, obj, form, change)
 
-
-    """
-    Admin view for the Product model.
-    """
-    list_display = ('name', 'sku', 'tags', 'category', 'quantity', 'low_stock_threshold', 'is_archived', 'updated_at')
-    search_fields = ('name', 'sku', 'category', 'tags')
+    list_display = ('id', 'name', 'sku', 'tags', 'category', 'quantity', 'low_stock_threshold', 'is_archived', 'updated_at')
+    search_fields = ('id', 'name', 'sku', 'category', 'tags')
     list_filter = ('is_archived', 'category', 'created_at')
     ordering = ('-updated_at',)
     readonly_fields = ('created_at', 'updated_at')
@@ -35,7 +30,6 @@ class ProductAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-
 
 @admin.register(InventoryLog)
 class InventoryLogAdmin(admin.ModelAdmin):
