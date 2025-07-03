@@ -16,8 +16,21 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+
+# Import ViewSets from your apps
+from inventory.views import ProductViewSet
+from inbound.views import SupplierViewSet, InboundViewSet
+from core.views import AttachmentViewSet
+
+# Create a single router for the entire API
+router = DefaultRouter()
+router.register(r'products', ProductViewSet, basename='product')
+router.register(r'suppliers', SupplierViewSet, basename='supplier')
+router.register(r'inbounds', InboundViewSet, basename='inbound')
+router.register(r'attachments', AttachmentViewSet, basename='attachment')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('inventory.urls')), # Include inventory app URLs
+    path('api/', include(router.urls)),  # Unified API root
 ]
