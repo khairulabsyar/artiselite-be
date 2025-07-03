@@ -5,6 +5,9 @@ class Product(models.Model):
     _original_quantity = None
 
     def __init__(self, *args, **kwargs):
+        # Pop custom kwargs before passing to the parent __init__
+        self._user = kwargs.pop('_user', None)
+        self._reason = kwargs.pop('_reason', None)
         super().__init__(*args, **kwargs)
         self._original_quantity = self.quantity
 
