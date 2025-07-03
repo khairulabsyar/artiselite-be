@@ -15,7 +15,7 @@ class ProductAdmin(admin.ModelAdmin):
     """
     Admin view for the Product model.
     """
-    list_display = ('name', 'sku', 'category', 'quantity', 'low_stock_threshold', 'is_archived', 'updated_at')
+    list_display = ('name', 'sku', 'tags', 'category', 'quantity', 'low_stock_threshold', 'is_archived', 'updated_at')
     search_fields = ('name', 'sku', 'category', 'tags')
     list_filter = ('is_archived', 'category', 'created_at')
     ordering = ('-updated_at',)
