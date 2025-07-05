@@ -85,10 +85,10 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'artiselite_db',
-        'USER': 'artiselite_user',
-        'PASSWORD': 'artiselite123',
-        'HOST': 'localhost', # Or the IP address of your DB server
-        'PORT': '5432',      # Default PostgreSQL port
+        'USER': 'khairulabsyar',
+        'PASSWORD': 'artiselite123',  # <-- IMPORTANT: Add your password here if you have one
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 
