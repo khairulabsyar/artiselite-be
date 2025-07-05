@@ -43,7 +43,7 @@ class OutboundSerializer(serializers.ModelSerializer):
         if product and quantity:
             if product.quantity < quantity:
                 raise serializers.ValidationError(
-                    {'detail': f"Not enough stock for {product.name}. Available: {product.quantity}, Requested: {quantity}"}
+                    {'product': f"Not enough stock for {product.name}. Available: {product.quantity}, Requested: {quantity}"}
                 )
         return data
 

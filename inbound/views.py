@@ -1,6 +1,9 @@
 import pandas as pd
+import json
 from django.db import transaction
+from django.http import QueryDict
 from rest_framework import viewsets, status
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Supplier, Inbound, InboundItem
@@ -16,6 +19,48 @@ class InboundViewSet(viewsets.ModelViewSet):
     """API endpoint for managing inbound shipments."""
     queryset = Inbound.objects.prefetch_related('items__product').all()
     serializer_class = InboundSerializer
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def _prepare_data(self, request):
+        """Prepares request data by handling QueryDicts and nested JSON."""
+        data = request.data
+        if isinstance(data, QueryDict):
+            data = {key: data.get(key) for key in data}
+
+        # For JSON requests from the browsable API, a file field might be sent as an
+        # empty string. We should ignore it to allow optional file uploads.
+        if request.content_type == 'application/json' and 'uploaded_attachments' in data and isinstance(data.get('uploaded_attachments'), str):
+            data.pop('uploaded_attachments')
+
+
+        return data
+
+    def create(self, request, *args, **kwargs):
+        """
+        Handles creation of an inbound shipment, with special handling for multipart data.
+        """
+        data = self._prepare_data(request)
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def update(self, request, *args, **kwargs):
+        """
+        Handles updates to an inbound shipment, with special handling for multipart data.
+        """
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        data = self._prepare_data(request)
+        serializer = self.get_serializer(instance, data=data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        if getattr(instance, '_prefetched_objects_cache', None):
+            instance._prefetched_objects_cache = {}
+
+        return Response(serializer.data)
 
     @action(detail=False, methods=['post'], serializer_class=InboundBulkUploadSerializer)
     def bulk_upload(self, request):

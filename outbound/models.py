@@ -46,46 +46,4 @@ class Outbound(models.Model):
         return f'Outbound #{self.id} - {self.product.name} to {self.customer.name}'
 
     def save(self, *args, **kwargs):
-        """
-        Custom save method to update inventory when an outbound shipment's status
-        is changed to 'COMPLETED'.
-        """
-        old_status = None
-        if self.pk:
-            try:
-                old_status = Outbound.objects.get(pk=self.pk).status
-            except Outbound.DoesNotExist:
-                pass
-
-        super().save(*args, **kwargs)  # Save the object first
-
-        if old_status != 'COMPLETED' and self.status == 'COMPLETED':
-            try:
-                with transaction.atomic():
-                    # Get user from instance if attached (e.g., from admin), otherwise use creator
-                    user = getattr(self, '_user', self.created_by)
-
-                    product = self.product
-                    
-                    if product.quantity < self.quantity:
-                        raise ValueError(f"Not enough stock for {product.name}. Available: {product.quantity}, Requested: {self.quantity}")
-
-                    # Deduct stock atomically
-                    Product.objects.filter(pk=product.pk).update(quantity=F('quantity') - self.quantity)
-                    
-                    product.refresh_from_db()
-                    
-                    InventoryLog.objects.create(
-                        product=product,
-                        user=user,
-                        quantity_change=-self.quantity,  # Negative for outbound
-                        new_quantity=product.quantity,
-                        reason=f'Outbound shipment #{self.id} completed.'
-                    )
-            
-            except (ValueError, IntegrityError) as e:
-                # If any error occurs (e.g., stock issue), revert the status change
-                self.status = old_status
-                super().save(update_fields=['status'])
-                # Re-raise a clean exception for the view to catch and handle
-                raise ValueError("Insufficient stock to complete this order.") from e
+        super().save(*args, **kwargs)
