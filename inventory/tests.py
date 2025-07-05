@@ -1,15 +1,14 @@
-import os
 import csv
-from io import StringIO, BytesIO
+from io import BytesIO, StringIO
 
 import pandas as pd
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
-from django.core.files.uploadedfile import SimpleUploadedFile
 
-from .models import Product, InventoryLog
+from .models import InventoryLog, Product
 
 User = get_user_model()
 

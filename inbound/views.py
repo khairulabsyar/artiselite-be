@@ -1,14 +1,21 @@
-import pandas as pd
 import json
+
+import pandas as pd
 from django.db import transaction
 from django.http import QueryDict
-from rest_framework import viewsets, status
-from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from .models import Supplier, Inbound, InboundItem
-from .serializers import SupplierSerializer, InboundSerializer, InboundBulkUploadSerializer
 from inventory.models import Product
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.response import Response
+
+from .models import Inbound, InboundItem, Supplier
+from .serializers import (
+    InboundBulkUploadSerializer,
+    InboundSerializer,
+    SupplierSerializer,
+)
+
 
 class SupplierViewSet(viewsets.ModelViewSet):
     """API endpoint for managing suppliers."""
@@ -24,14 +31,22 @@ class InboundViewSet(viewsets.ModelViewSet):
     def _prepare_data(self, request):
         """Prepares request data by handling QueryDicts and nested JSON."""
         data = request.data
+        # If data is a QueryDict, convert it to a mutable dictionary
         if isinstance(data, QueryDict):
             data = {key: data.get(key) for key in data}
+
+        # If 'items' is a JSON string (common with multipart/form-data), parse it.
+        if 'items' in data and isinstance(data.get('items'), str):
+            try:
+                data['items'] = json.loads(data['items'])
+            except json.JSONDecodeError:
+                # Let the serializer handle the validation error if it's not valid JSON
+                pass
 
         # For JSON requests from the browsable API, a file field might be sent as an
         # empty string. We should ignore it to allow optional file uploads.
         if request.content_type == 'application/json' and 'uploaded_attachments' in data and isinstance(data.get('uploaded_attachments'), str):
             data.pop('uploaded_attachments')
-
 
         return data
 
@@ -42,7 +57,21 @@ class InboundViewSet(viewsets.ModelViewSet):
         data = self._prepare_data(request)
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        
+        # Extract uploaded attachment from validated data (now a single file, not a list)
+        uploaded_attachment = serializer.validated_data.pop('uploaded_attachments', None)
+        
+        # Create the inbound shipment
+        inbound = serializer.save()
+        
+        # Create attachment directly in the ViewSet
+        from core.models import Attachment
+        if uploaded_attachment:
+            Attachment.objects.create(
+                file=uploaded_attachment,
+                content_object=inbound
+            )
+        
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
@@ -55,11 +84,24 @@ class InboundViewSet(viewsets.ModelViewSet):
         data = self._prepare_data(request)
         serializer = self.get_serializer(instance, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
+        
+        # Extract uploaded attachment from validated data (now a single file, not a list)
+        uploaded_attachment = serializer.validated_data.pop('uploaded_attachments', None)
+        
+        # Update the inbound shipment
         self.perform_update(serializer)
-
+        
+        # Create attachment directly in the ViewSet
+        from core.models import Attachment
+        if uploaded_attachment:
+            Attachment.objects.create(
+                file=uploaded_attachment,
+                content_object=instance
+            )
+        
         if getattr(instance, '_prefetched_objects_cache', None):
             instance._prefetched_objects_cache = {}
-
+            
         return Response(serializer.data)
 
     @action(detail=False, methods=['post'], serializer_class=InboundBulkUploadSerializer)

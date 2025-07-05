@@ -1,14 +1,14 @@
 import pandas as pd
-from django.db import transaction, IntegrityError
-from django.db.models import Q
-from rest_framework import viewsets, status
+from django.db import IntegrityError, transaction
+from django.db.models import F, Q
+from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.exceptions import ValidationError
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
-from rest_framework import serializers
-from django.db.models import F
-from .models import Product, InventoryLog
-from .serializers import ProductSerializer, FileUploadSerializer
+
+from .models import Product
+from .serializers import FileUploadSerializer, ProductSerializer
 
 
 class ProductViewSet(viewsets.ModelViewSet):
@@ -60,7 +60,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         reason = serializer.validated_data.pop('reason', 'Creation via API')
         try:
             serializer.save(_user=user, _reason=reason)
-        except IntegrityError as e:
+        except IntegrityError:
             raise ValidationError({'detail': 'Failed to create product. This may be due to a duplicate SKU or invalid data.'})
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
@@ -74,7 +74,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         reason = serializer.validated_data.pop('reason', 'Update via API')
         try:
             serializer.save(_user=user, _reason=reason)
-        except IntegrityError as e:
+        except IntegrityError:
             raise ValidationError({'detail': 'Update failed. Quantity cannot be negative.'})
 
         if getattr(instance, '_prefetched_objects_cache', None):

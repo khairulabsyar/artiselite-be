@@ -1,13 +1,19 @@
 import pandas as pd
-from rest_framework import viewsets, status
-from rest_framework.response import Response
+from core.models import Attachment
+from django.db import transaction
+from inventory.models import InventoryLog, Product
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
-from django.db import transaction
+from rest_framework.response import Response
+
 from .models import Customer, Outbound
-from .serializers import CustomerSerializer, OutboundSerializer, OutboundBulkUploadSerializer
-from inventory.models import Product, InventoryLog
-from core.models import Attachment
+from .serializers import (
+    CustomerSerializer,
+    OutboundBulkUploadSerializer,
+    OutboundSerializer,
+)
+
 
 class CustomerViewSet(viewsets.ModelViewSet):
     """API endpoint that allows customers to be viewed or edited."""

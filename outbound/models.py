@@ -1,9 +1,9 @@
-from django.db import models, transaction, IntegrityError
-from django.db.models import F
+from core.models import Attachment
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.fields import GenericRelation
-from inventory.models import Product, InventoryLog
-from core.models import Attachment
+from django.db import models
+from inventory.models import Product
+
 
 class Customer(models.Model):
     """

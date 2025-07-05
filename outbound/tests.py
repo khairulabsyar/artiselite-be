@@ -1,11 +1,12 @@
-import os
-from django.urls import reverse
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.urls import reverse
+from inventory.models import InventoryLog, Product
 from rest_framework import status
 from rest_framework.test import APITestCase
-from inventory.models import Product, InventoryLog
-from .models import Customer, Outbound, Attachment
+
+from .models import Customer, Outbound
+
 
 class OutboundAPITests(APITestCase):
     def setUp(self):

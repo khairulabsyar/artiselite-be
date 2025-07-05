@@ -1,7 +1,8 @@
-from rest_framework import serializers
-from .models import Customer, Outbound
-from inventory.models import Product
 from core.serializers import AttachmentSerializer
+from rest_framework import serializers
+
+from .models import Customer, Outbound
+
 
 class CustomerSerializer(serializers.ModelSerializer):
     """

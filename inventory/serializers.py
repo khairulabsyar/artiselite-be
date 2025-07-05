@@ -1,6 +1,8 @@
 from django.db import transaction
 from rest_framework import serializers
-from .models import Product, InventoryLog
+
+from .models import InventoryLog, Product
+
 
 class FileUploadSerializer(serializers.Serializer):
     """
