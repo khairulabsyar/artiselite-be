@@ -21,6 +21,7 @@ from rest_framework.routers import DefaultRouter
 # Import ViewSets from your apps
 from inventory.views import ProductViewSet
 from inbound.views import SupplierViewSet, InboundViewSet
+from outbound.views import CustomerViewSet, OutboundViewSet
 from core.views import AttachmentViewSet
 
 # Create a single router for the entire API
@@ -28,6 +29,8 @@ router = DefaultRouter()
 router.register(r'products', ProductViewSet, basename='product')
 router.register(r'suppliers', SupplierViewSet, basename='supplier')
 router.register(r'inbounds', InboundViewSet, basename='inbound')
+router.register(r'customers', CustomerViewSet, basename='customer')
+router.register(r'outbounds', OutboundViewSet, basename='outbound')
 router.register(r'attachments', AttachmentViewSet, basename='attachment')
 
 urlpatterns = [
