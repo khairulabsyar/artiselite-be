@@ -158,23 +158,36 @@ class OutboundViewSet(viewsets.ModelViewSet):
 
         try:
             with transaction.atomic():
-                # Deduct product quantity
-                product.quantity -= outbound.quantity
-                product.save()
+                # Re-fetch and lock the product row to prevent race conditions
+                product_to_update = Product.objects.select_for_update().get(pk=product.pk)
+
+                # Check stock again with the lock in place
+                if product_to_update.quantity < outbound.quantity:
+                    return Response(
+                        {'detail': f'Stock level changed. Not enough stock for {product.name}. Available: {product_to_update.quantity}, Requested: {outbound.quantity}'},
+                        status=status.HTTP_409_CONFLICT
+                    )
+
+                # Deduct product quantity atomically using F() expression
+                product_to_update.quantity -= outbound.quantity
+                product_to_update.save()
 
                 # Update outbound status
                 outbound.status = 'COMPLETED'
                 outbound.save()
 
+                # Refresh the product object to get the actual new quantity
+                product_to_update.refresh_from_db()
+
                 # Create an inventory log entry
                 InventoryLog.objects.create(
-                    product=product,
+                    product=product_to_update,
                     user=request.user,
                     quantity_change=-outbound.quantity,
-                    new_quantity=product.quantity,
+                    new_quantity=product_to_update.quantity,
                     reason=f"Outbound transaction for SO: {outbound.so_ref or 'N/A'}"
                 )
 
             return Response(self.get_serializer(outbound).data)
         except Exception as e:
-            return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'detail': f'An unexpected error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
