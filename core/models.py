@@ -1,7 +1,9 @@
 import os
-from django.db import models
+
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.db import models
+
 
 def get_upload_path(instance, filename):
     """Generates a unique upload path for attachments."""

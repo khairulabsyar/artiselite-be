@@ -1,5 +1,7 @@
 from django.contrib import admin
-from .models import Supplier, Inbound, InboundItem
+
+from .models import Inbound, InboundItem, Supplier
+
 
 class InboundItemInline(admin.TabularInline):
     """

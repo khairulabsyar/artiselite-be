@@ -1,7 +1,8 @@
+from core.models import Attachment
+from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models, transaction
 from django.db.models import F
-from inventory.models import Product, InventoryLog
-import logging
+from inventory.models import InventoryLog, Product
 
 
 class Supplier(models.Model):
@@ -31,6 +32,7 @@ class Inbound(models.Model):
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    attachments = GenericRelation(Attachment, related_query_name='inbound')
 
     def __str__(self):
         return f"Inbound {self.id} from {self.supplier.name} on {self.inbound_date}"
@@ -80,7 +82,7 @@ class Inbound(models.Model):
                         )
                     
             
-            except Exception as e:
+            except Exception:
             
                 # Handle the error, maybe revert the status or log it for manual intervention
                 self.status = old_status

@@ -1,8 +1,10 @@
-from rest_framework import viewsets, status, serializers
-from rest_framework.response import Response
 from django.contrib.contenttypes.models import ContentType
+from rest_framework import serializers, status, viewsets
+from rest_framework.response import Response
+
 from .models import Attachment
 from .serializers import AttachmentSerializer
+
 
 class AttachmentViewSet(viewsets.ModelViewSet):
     """API endpoint for managing attachments."""

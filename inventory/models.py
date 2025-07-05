@@ -1,5 +1,7 @@
-from django.db import models
 from django.conf import settings
+from django.db import models
+from django.db.models import Q
+
 
 class Product(models.Model):
     """
@@ -22,6 +24,9 @@ class Product(models.Model):
     class Meta:
         ordering = ['name']
         verbose_name_plural = "Products"
+        constraints = [
+            models.CheckConstraint(check=Q(quantity__gte=0), name='quantity_non_negative')
+        ]
 
 
 class InventoryLog(models.Model):
