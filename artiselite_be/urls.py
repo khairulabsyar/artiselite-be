@@ -56,4 +56,6 @@ urlpatterns = [
 
     # Role-Permission management endpoint
     path('api/roles/<int:role_id>/permissions/', RolePermissionView.as_view(), name='role-permissions'),
+
+    path('api/dashboard/', include('dashboard.urls')),
 ]

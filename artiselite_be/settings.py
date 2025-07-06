@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'outbound',
     'core',
     'users',
+    'dashboard',
     'rest_framework_simplejwt',
     'auditlog',
 ]
