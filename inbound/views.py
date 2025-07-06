@@ -4,10 +4,12 @@ import pandas as pd
 from django.db import transaction
 from django.http import QueryDict
 from inventory.models import Product
-from rest_framework import status, viewsets
+from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
+from users.permissions import IsAdminUser, AllowOperatorCreateOnly
+from core.mixins import AuditLogMixin
 
 from .models import Inbound, InboundItem, Supplier
 from .serializers import (
@@ -21,12 +23,23 @@ class SupplierViewSet(viewsets.ModelViewSet):
     """API endpoint for managing suppliers."""
     queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
-class InboundViewSet(viewsets.ModelViewSet):
-    """API endpoint for managing inbound shipments."""
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdminUser()]
+        return super().get_permissions()
+
+
+class InboundViewSet(AuditLogMixin, viewsets.ModelViewSet):
+    """
+    API endpoint for managing inbound shipments.
+    Operators can create inbound shipments but cannot update or delete them.
+    """
     queryset = Inbound.objects.prefetch_related('items__product').all()
     serializer_class = InboundSerializer
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+    permission_classes = [permissions.IsAuthenticated, AllowOperatorCreateOnly]
 
     def _prepare_data(self, request):
         """Prepares request data by handling QueryDicts and nested JSON."""
@@ -51,67 +64,56 @@ class InboundViewSet(viewsets.ModelViewSet):
         return data
 
     def create(self, request, *args, **kwargs):
-        """
-        Handles creation of an inbound shipment, with special handling for multipart data.
-        """
-        data = self._prepare_data(request)
-        serializer = self.get_serializer(data=data)
+        """Handles creation of an inbound shipment, with special handling for multipart data."""
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
-        # Extract uploaded attachment from validated data (now a single file, not a list)
-        uploaded_attachment = serializer.validated_data.pop('uploaded_attachments', None)
-        
-        # Create the inbound shipment
-        inbound = serializer.save()
-        
-        # Create attachment directly in the ViewSet
-        from core.models import Attachment
-        if uploaded_attachment:
-            Attachment.objects.create(
-                file=uploaded_attachment,
-                content_object=inbound
-            )
-        
+
+        # Pop attachments before saving, as they are not a model field
+        uploaded_attachments = serializer.validated_data.pop('uploaded_attachments', None)
+
+        # This calls the method in AuditLogMixin, which sets the actor
+        self.perform_create(serializer)
+
+        # After perform_create, the instance is available on the serializer
+        inbound_instance = serializer.instance
+
+        # Handle attachments now that the instance exists
+        if uploaded_attachments:
+            from core.models import Attachment
+            for attachment_file in uploaded_attachments:
+                Attachment.objects.create(content_object=inbound_instance, file=attachment_file)
+
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def update(self, request, *args, **kwargs):
-        """
-        Handles updates to an inbound shipment, with special handling for multipart data.
-        """
+        """Handles updates to an inbound shipment, with special handling for multipart data."""
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         data = self._prepare_data(request)
         serializer = self.get_serializer(instance, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
-        
-        # Extract uploaded attachment from validated data (now a single file, not a list)
-        uploaded_attachment = serializer.validated_data.pop('uploaded_attachments', None)
-        
-        # Update the inbound shipment
+
+        # Pop attachments before saving
+        uploaded_attachments = serializer.validated_data.pop('uploaded_attachments', None)
+
+        # This calls the method in AuditLogMixin, which sets the actor
         self.perform_update(serializer)
-        
-        # Create attachment directly in the ViewSet
-        from core.models import Attachment
-        if uploaded_attachment:
-            Attachment.objects.create(
-                file=uploaded_attachment,
-                content_object=instance
-            )
-        
+
+        # Handle attachments
+        if uploaded_attachments:
+            from core.models import Attachment
+            for attachment_file in uploaded_attachments:
+                Attachment.objects.create(content_object=instance, file=attachment_file)
+
         if getattr(instance, '_prefetched_objects_cache', None):
             instance._prefetched_objects_cache = {}
-            
+
         return Response(serializer.data)
 
     @action(detail=False, methods=['post'], serializer_class=InboundBulkUploadSerializer)
     def bulk_upload(self, request):
-        """
-        Handles bulk creation of inbound shipments from a CSV or XLSX file.
-        The file should contain columns: inbound_ref, inbound_date, supplier_email,
-        product_sku, quantity, unit_price.
-        Dates must be in a consistent, machine-readable format (e.g., YYYY-MM-DD).
-        """
+        """Handles bulk creation of inbound shipments from a CSV or XLSX file."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         file = serializer.validated_data['file']

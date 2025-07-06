@@ -1,8 +1,10 @@
 import pandas as pd
 from core.models import Attachment
 from django.db import transaction
-from inventory.models import InventoryLog, Product
-from rest_framework import status, viewsets
+from inventory.models import Product
+from rest_framework import permissions, status, viewsets
+from users.permissions import IsAdminUser, AllowOperatorCreateOnly
+from core.mixins import AuditLogMixin
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -19,32 +21,40 @@ class CustomerViewSet(viewsets.ModelViewSet):
     """API endpoint that allows customers to be viewed or edited."""
     queryset = Customer.objects.all()
     serializer_class = CustomerSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
-class OutboundViewSet(viewsets.ModelViewSet):
-    """API endpoint that allows outbound transactions to be viewed or edited."""
-    queryset = Outbound.objects.all()
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdminUser()]
+        return super().get_permissions()
+
+class OutboundViewSet(AuditLogMixin, viewsets.ModelViewSet):
+    """
+    API endpoint for managing outbound transactions.
+    Operators can create outbound records but cannot update or delete them.
+    """
+    queryset = Outbound.objects.all().order_by('-created_at')
     serializer_class = OutboundSerializer
+    permission_classes = [permissions.IsAuthenticated, AllowOperatorCreateOnly]
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
-        uploaded_attachments = serializer.validated_data.pop('uploaded_attachments', [])
-        
+
+        uploaded_attachments = serializer.validated_data.pop('uploaded_attachments', None)
+
         try:
-            outbound = serializer.save(created_by=self.request.user)
+            self.perform_create(serializer)
         except ValueError as e:
             raise ValidationError({'detail': str(e)})
 
-        for attachment_file in uploaded_attachments:
-            Attachment.objects.create(
-                file=attachment_file,
-                content_object=outbound
-            )
-        
+        if uploaded_attachments:
+            outbound_instance = serializer.instance
+            for attachment_file in uploaded_attachments:
+                Attachment.objects.create(content_object=outbound_instance, file=attachment_file)
+
         headers = self.get_success_headers(serializer.data)
-        response_serializer = self.get_serializer(outbound)
-        return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
@@ -52,24 +62,21 @@ class OutboundViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
 
-        uploaded_attachments = serializer.validated_data.pop('uploaded_attachments', [])
+        uploaded_attachments = serializer.validated_data.pop('uploaded_attachments', None)
 
         try:
             self.perform_update(serializer)
         except ValueError as e:
             raise ValidationError({'detail': str(e)})
 
-        for attachment_file in uploaded_attachments:
-            Attachment.objects.create(
-                file=attachment_file,
-                content_object=instance
-            )
+        if uploaded_attachments:
+            for attachment_file in uploaded_attachments:
+                Attachment.objects.create(content_object=instance, file=attachment_file)
 
         if getattr(instance, '_prefetched_objects_cache', None):
             instance._prefetched_objects_cache = {}
-        
-        response_serializer = self.get_serializer(instance)
-        return Response(response_serializer.data)
+
+        return Response(serializer.data)
 
     @action(detail=False, methods=['post'], serializer_class=OutboundBulkUploadSerializer)
     def bulk_upload(self, request):
@@ -143,57 +150,34 @@ class OutboundViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=True, methods=['post'], url_path='complete')
+            
+    @action(detail=True, methods=['post'])
     def complete_outbound(self, request, pk=None):
-        """Marks an outbound transaction as completed and deducts the stock."""
+        """Mark an outbound record as completed and update inventory.
+        
+        This action will:
+        1. Change the outbound status to COMPLETED
+        
+        Note: The model's save method automatically handles:
+        2. Deducting the quantity from product inventory
+        3. Creating an inventory log entry
+        """
         outbound = self.get_object()
-
+        
         if outbound.status == 'COMPLETED':
-            return Response({'detail': 'Outbound is already completed.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if outbound.status == 'CANCELLED':
-            return Response({'detail': 'Cannot complete a cancelled outbound.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        product = outbound.product
-        if product.quantity < outbound.quantity:
+            return Response({'detail': 'Outbound is already completed'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if there's enough stock before attempting to complete
+        if outbound.product.quantity < outbound.quantity:
             return Response(
-                {'detail': f'Not enough stock for {product.name}. Available: {product.quantity}, Requested: {outbound.quantity}'},
+                {'detail': f'Not enough stock. Available: {outbound.product.quantity}, Required: {outbound.quantity}'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        
+        # Just update status - the model's save method will handle inventory deduction
+        # and log creation via the _deduct_inventory method automatically
+        outbound.status = 'COMPLETED'
+        outbound.save(_user=request.user, _reason='Completed via API')
+            
+        return Response({'detail': 'Outbound completed successfully'}, status=status.HTTP_200_OK)
 
-        try:
-            with transaction.atomic():
-                # Re-fetch and lock the product row to prevent race conditions
-                product_to_update = Product.objects.select_for_update().get(pk=product.pk)
-
-                # Check stock again with the lock in place
-                if product_to_update.quantity < outbound.quantity:
-                    return Response(
-                        {'detail': f'Stock level changed. Not enough stock for {product.name}. Available: {product_to_update.quantity}, Requested: {outbound.quantity}'},
-                        status=status.HTTP_409_CONFLICT
-                    )
-
-                # Deduct product quantity atomically using F() expression
-                product_to_update.quantity -= outbound.quantity
-                product_to_update.save()
-
-                # Update outbound status
-                outbound.status = 'COMPLETED'
-                outbound.save()
-
-                # Refresh the product object to get the actual new quantity
-                product_to_update.refresh_from_db()
-
-                # Create an inventory log entry
-                InventoryLog.objects.create(
-                    product=product_to_update,
-                    user=request.user,
-                    quantity_change=-outbound.quantity,
-                    new_quantity=product_to_update.quantity,
-                    reason=f"Outbound transaction for SO: {outbound.so_ref or 'N/A'}"
-                )
-
-            return Response(self.get_serializer(outbound).data)
-        except Exception as e:
-            return Response({'detail': f'An unexpected error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -1,19 +1,27 @@
 import pandas as pd
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.db.models import F, Q
-from rest_framework import serializers, status, viewsets
-from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework import viewsets, permissions, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
+from auditlog.context import set_actor
 
+from users.permissions import AllowOperatorCreateOnly
+from core.mixins import AuditLogMixin
 from .models import Product
-from .serializers import FileUploadSerializer, ProductSerializer
+from .serializers import ProductSerializer, FileUploadSerializer
 
 
-class ProductViewSet(viewsets.ModelViewSet):
+class ProductViewSet(AuditLogMixin, viewsets.ModelViewSet):
+    """
+    API endpoint for managing products.
+    Operators can create products but cannot update or delete them.
+    """
     queryset = Product.objects.all().order_by('-updated_at')
     serializer_class = ProductSerializer
+    permission_classes = [permissions.IsAuthenticated, AllowOperatorCreateOnly]
 
     def get_queryset(self):
         """
@@ -53,33 +61,41 @@ class ProductViewSet(viewsets.ModelViewSet):
             return FileUploadSerializer
         return ProductSerializer
 
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = request.user if request.user.is_authenticated else None
-        reason = serializer.validated_data.pop('reason', 'Creation via API')
-        try:
+    def perform_create(self, serializer):
+        """
+        Sets the actor using the mixin and saves the new product instance,
+        passing the user and a reason to the serializer.
+        """
+        user = self.request.user if self.request.user.is_authenticated else None
+        
+        # Get reason from request data if provided, otherwise use default
+        if 'reason' in self.request.data:
+            reason = self.request.data['reason']
+        else:
+            reason = "Product created via API"
+            
+        # Don't pass parameters to super, as AuditLogMixin.perform_create doesn't accept them
+        # Instead, directly modify the serializer.save call like the mixin does
+        with set_actor(user):
             serializer.save(_user=user, _reason=reason)
-        except IntegrityError:
-            raise ValidationError({'detail': 'Failed to create product. This may be due to a duplicate SKU or invalid data.'})
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
-    def update(self, request, *args, **kwargs):
-        partial = kwargs.pop('partial', False)
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        serializer.is_valid(raise_exception=True)
-        user = request.user if request.user.is_authenticated else None
-        reason = serializer.validated_data.pop('reason', 'Update via API')
-        try:
+    def perform_update(self, serializer):
+        """
+        Sets the actor using the mixin and saves the updated product instance,
+        passing the user and a reason to the serializer.
+        """
+        user = self.request.user if self.request.user.is_authenticated else None
+        
+        # Get reason from request data if provided, otherwise use default
+        if 'reason' in self.request.data:
+            reason = self.request.data['reason']
+        else:
+            reason = "Product updated via API"
+            
+        # Don't pass parameters to super, as AuditLogMixin.perform_update doesn't accept them
+        # Instead, directly modify the serializer.save call like the mixin does
+        with set_actor(user):
             serializer.save(_user=user, _reason=reason)
-        except IntegrityError:
-            raise ValidationError({'detail': 'Update failed. Quantity cannot be negative.'})
-
-        if getattr(instance, '_prefetched_objects_cache', None):
-            instance._prefetched_objects_cache = {}
-        return Response(serializer.data)
 
     @action(
         detail=False, 
@@ -111,7 +127,6 @@ class ProductViewSet(viewsets.ModelViewSet):
                     'error': f'Missing required columns. Required: {list(required_columns)}'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            # Replace NaN with None for database compatibility
             df = df.where(pd.notnull(df), None)
             
             created_count = 0
@@ -146,10 +161,9 @@ class ProductViewSet(viewsets.ModelViewSet):
                         else:
                             created_count += 1
                     else:
-                        # If any row is invalid, fail the entire transaction and report the error.
-                        raise serializers.ValidationError({
+                        raise ValidationError({
                             'detail': 'Row validation failed.',
-                            'row_index': index + 2,  # +2 for header and 0-indexing
+                            'row_index': index + 2,
                             'errors': serializer.errors
                         })
             
@@ -159,7 +173,7 @@ class ProductViewSet(viewsets.ModelViewSet):
                 'updated': updated_count
             }, status=status.HTTP_201_CREATED)
 
-        except serializers.ValidationError as e:
+        except ValidationError as e:
             return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:

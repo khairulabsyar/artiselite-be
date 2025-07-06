@@ -1,9 +1,11 @@
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers, status, viewsets
 from rest_framework.response import Response
+from auditlog.models import LogEntry
+from users.permissions import IsAdminOrManagerUser
 
 from .models import Attachment
-from .serializers import AttachmentSerializer
+from .serializers import AttachmentSerializer, LogEntrySerializer
 
 
 class AttachmentViewSet(viewsets.ModelViewSet):
@@ -58,3 +60,10 @@ class AttachmentViewSet(viewsets.ModelViewSet):
         
         headers = self.get_success_headers(file_serializer.data)
         return Response(file_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """API endpoint for viewing activity logs."""
+    queryset = LogEntry.objects.all().order_by('-timestamp')
+    serializer_class = LogEntrySerializer
+    permission_classes = [IsAdminOrManagerUser]

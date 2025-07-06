@@ -1,4 +1,4 @@
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from inventory.models import InventoryLog, Product
@@ -7,12 +7,33 @@ from rest_framework.test import APITestCase
 
 from .models import Customer, Outbound
 
+User = get_user_model()
+
 
 class OutboundAPITests(APITestCase):
     def setUp(self):
         """Set up initial data for tests."""
-        self.user = User.objects.create_user(username='testuser', password='testpassword')
-        self.client.login(username='testuser', password='testpassword')
+        # Create roles first
+        from users.models import Role
+        self.admin_role = Role.objects.create(name='Admin', description='Administrator')
+        self.manager_role = Role.objects.create(name='Manager', description='Manager')
+        self.operator_role = Role.objects.create(name='Operator', description='Operator')
+        
+        # Create users with different roles
+        self.admin_user = User.objects.create_user(username='admin_user', password='testpassword')
+        self.admin_user.role = self.admin_role
+        self.admin_user.save()
+        
+        self.manager_user = User.objects.create_user(username='manager_user', password='testpassword')
+        self.manager_user.role = self.manager_role
+        self.manager_user.save()
+        
+        self.operator_user = User.objects.create_user(username='operator_user', password='testpassword')
+        self.operator_user.role = self.operator_role
+        self.operator_user.save()
+        
+        # Default to admin user for most operations
+        self.client.force_authenticate(user=self.admin_user)
 
         self.product = Product.objects.create(
             name='Test Product',
