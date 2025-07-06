@@ -22,7 +22,13 @@ from rest_framework.routers import DefaultRouter
 from inventory.views import ProductViewSet
 from inbound.views import SupplierViewSet, InboundViewSet
 from outbound.views import CustomerViewSet, OutboundViewSet
-from core.views import AttachmentViewSet
+from core.views import AttachmentViewSet, ActivityLogViewSet
+from users.views import UserViewSet, UserRegistrationView, RoleViewSet, RolePermissionView
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView,
+)
 
 # Create a single router for the entire API
 router = DefaultRouter()
@@ -32,8 +38,22 @@ router.register(r'inbounds', InboundViewSet, basename='inbound')
 router.register(r'customers', CustomerViewSet, basename='customer')
 router.register(r'outbounds', OutboundViewSet, basename='outbound')
 router.register(r'attachments', AttachmentViewSet, basename='attachment')
+router.register(r'users', UserViewSet, basename='user')
+router.register(r'roles', RoleViewSet, basename='role')
+router.register(r'activity-logs', ActivityLogViewSet, basename='activity-log')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),  # Unified API root
+
+    # JWT Authentication endpoints
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+
+    # Public registration endpoint
+    path('api/register/', UserRegistrationView.as_view(), name='register'),
+
+    # Role-Permission management endpoint
+    path('api/roles/<int:role_id>/permissions/', RolePermissionView.as_view(), name='role-permissions'),
 ]

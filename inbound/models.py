@@ -1,6 +1,7 @@
 from core.models import Attachment
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models, transaction
+from auditlog.registry import auditlog
 from django.db.models import F
 from inventory.models import InventoryLog, Product
 
@@ -37,18 +38,21 @@ class Inbound(models.Model):
     def __str__(self):
         return f"Inbound {self.id} from {self.supplier.name} on {self.inbound_date}"
 
-    def save(self, *args, **kwargs):
+    def save(self, _user=None, _reason=None, *args, **kwargs):
         """
         Custom save method to update inventory when an inbound shipment's status
         is changed to 'COMPLETED'.
         """
-        # Keep track of the status before saving
+        # Keep track of the status before saving and the user context
         old_status = None
         if self.pk:
             try:
                 old_status = Inbound.objects.get(pk=self.pk).status
             except Inbound.DoesNotExist:
                 pass
+        
+        # Attach user to instance for use in post-save logic
+        self._user = _user
 
         super().save(*args, **kwargs)  # Save the object first
 
@@ -56,8 +60,7 @@ class Inbound(models.Model):
         
             try:
                 with transaction.atomic():
-                    # Get user from the instance if it was attached (e.g., from admin)
-                    user = getattr(self, '_user', None)
+                    user = self._user
 
                     if not self.items.all().exists():
                     
@@ -78,7 +81,7 @@ class Inbound(models.Model):
                             user=user,
                             quantity_change=item.quantity,
                             new_quantity=product.quantity,
-                            reason=f'Inbound shipment #{self.id} completed.'
+                            reason=_reason or f'Inbound shipment #{self.id} completed.'
                         )
                     
             
@@ -100,3 +103,7 @@ class InboundItem(models.Model):
 
     def __str__(self):
         return f"{self.quantity} x {self.product.name} for Inbound {self.inbound.id}"
+
+auditlog.register(Supplier)
+auditlog.register(Inbound)
+auditlog.register(InboundItem)

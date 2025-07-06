@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from auditlog.registry import auditlog
 from django.db.models import Q
 
 
@@ -20,6 +21,39 @@ class Product(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.sku})"
+
+    def save(self, *args, **kwargs):
+        """
+        Custom save method to log inventory changes automatically.
+        Accepts `_user` and `_reason` kwargs for audit purposes.
+        """
+
+        # Pop custom kwargs before they reach the super().save() method
+        user = kwargs.pop('_user', None)
+        reason = kwargs.pop('_reason', 'No reason provided')
+
+        # Check if the instance is new or if the quantity has changed
+        is_new = self._state.adding
+        old_quantity = 0
+        if not is_new:
+            try:
+                old_quantity = Product.objects.get(pk=self.pk).quantity
+            except Product.DoesNotExist:
+                # This case should ideally not happen if the instance exists
+                pass
+
+        super().save(*args, **kwargs)  # Save the product instance first
+
+        quantity_changed = is_new or self.quantity != old_quantity
+
+        if quantity_changed:
+            InventoryLog.objects.create(
+                product=self,
+                user=user,
+                quantity_change=self.quantity - old_quantity,
+                new_quantity=self.quantity,
+                reason=reason
+            )
 
     class Meta:
         ordering = ['name']
@@ -52,4 +86,8 @@ class InventoryLog(models.Model):
     class Meta:
         ordering = ['-timestamp']
         verbose_name_plural = "Inventory Logs"
+
+
+auditlog.register(Product)
+auditlog.register(InventoryLog)
 

@@ -48,6 +48,31 @@ class OutboundSerializer(serializers.ModelSerializer):
                 )
         return data
 
+    def create(self, validated_data):
+        """
+        Create a new Outbound instance, handling the _user and _reason kwargs.
+        """
+        user = validated_data.pop('_user', None)
+        reason = validated_data.pop('_reason', 'Created via API')
+        instance = Outbound.objects.create(**validated_data)
+        # Manually call save to trigger the logic in the model's save method
+        instance.save(_user=user, _reason=reason)
+        return instance
+
+    def update(self, instance, validated_data):
+        """
+        Update an existing Outbound instance, handling the _user and _reason kwargs.
+        """
+        user = validated_data.pop('_user', None)
+        reason = validated_data.pop('_reason', 'Updated via API')
+
+        # Standard update process
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save(_user=user, _reason=reason)
+        return instance
+
 class OutboundBulkUploadSerializer(serializers.Serializer):
     """
     Serializer for bulk uploading outbound records from a file.
