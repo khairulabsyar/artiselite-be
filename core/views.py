@@ -1,7 +1,7 @@
+from auditlog.models import LogEntry
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers, status, viewsets
 from rest_framework.response import Response
-from auditlog.models import LogEntry
 from users.permissions import IsAdminOrManagerUser
 
 from .models import Attachment
@@ -53,7 +53,7 @@ class AttachmentViewSet(viewsets.ModelViewSet):
         except model_class.DoesNotExist:
             raise serializers.ValidationError({'detail': f"No object found for model {model_class.__name__} with ID {object_id}."})
         except Exception:
-             raise serializers.ValidationError({'detail': 'Invalid content_type or object_id.'})
+            raise serializers.ValidationError({'detail': 'Invalid content_type or object_id.'})
 
         # Save the attachment with the generic foreign key
         file_serializer.save(content_type=content_type, object_id=object_id)

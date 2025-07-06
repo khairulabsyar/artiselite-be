@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import User, Role, Permission
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
+    """Serializer for user registration, including password confirmation."""
     password2 = serializers.CharField(style={'input_type': 'password'}, write_only=True)
 
     class Meta:
@@ -26,6 +27,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    """Serializer for the User model, excluding sensitive fields like password."""
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'is_active', 'date_joined']
@@ -33,12 +35,14 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class RoleSerializer(serializers.ModelSerializer):
+    """Serializer for the Role model."""
     class Meta:
         model = Role
         fields = '__all__'
 
 
 class RolePermissionSerializer(serializers.Serializer):
+    """Serializer for assigning a list of permission IDs to a role."""
     permission_ids = serializers.ListField(
         child=serializers.IntegerField(),
         write_only=True

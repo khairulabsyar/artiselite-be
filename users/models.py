@@ -3,6 +3,7 @@ from auditlog.registry import auditlog
 from django.contrib.auth.models import AbstractUser
 
 class Role(models.Model):
+    """Represents a user role, such as Admin, Manager, or Operator."""
     ADMIN = 'Admin'
     MANAGER = 'Manager'
     OPERATOR = 'Operator'
@@ -18,6 +19,7 @@ class Role(models.Model):
         return self.name
 
 class Permission(models.Model):
+    """Defines a specific permission within a module (e.g., 'create' in 'Inventory')."""
     MODULE_CHOICES = [
         ('INVENTORY', 'Inventory'),
         ('INBOUND', 'Inbound'),
@@ -42,6 +44,7 @@ class Permission(models.Model):
         return f"{self.get_action_display()} {self.get_module_display()}"
 
 class RolePermission(models.Model):
+    """Links a Role to a specific Permission."""
     role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='permissions')
     permission = models.ForeignKey(Permission, on_delete=models.CASCADE)
 
@@ -49,6 +52,7 @@ class RolePermission(models.Model):
         unique_together = ('role', 'permission')
 
 class User(AbstractUser):
+    """Custom user model that includes a role for permission handling."""
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True)
     
     def has_permission(self, module, action):
@@ -60,6 +64,7 @@ class User(AbstractUser):
         ).exists()
 
 class ActivityLog(models.Model):
+    """Logs user actions across the system for auditing purposes."""
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     action = models.CharField(max_length=100)
     model_name = models.CharField(max_length=100)

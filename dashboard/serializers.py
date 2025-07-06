@@ -1,7 +1,7 @@
 from rest_framework import serializers
-from core.serializers import LogEntrySerializer as ActivityLogSerializer
 
 class TransactionVolumeSerializer(serializers.Serializer):
+    """Serializer for daily transaction volume data."""
     date = serializers.DateField()
     inbound = serializers.IntegerField()
     outbound = serializers.IntegerField()

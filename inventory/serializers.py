@@ -10,6 +10,7 @@ class FileUploadSerializer(serializers.Serializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
+    """Serializer for the Product model."""
 
     class Meta:
         model = Product
