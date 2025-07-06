@@ -1,4 +1,4 @@
-# ArtiseLite Backend
+# Artiselite Backend
 
 A production-grade Warehouse Management System (WMS) backend built with Django and PostgreSQL.
 
@@ -43,11 +43,6 @@ A production-grade Warehouse Management System (WMS) backend built with Django a
 - Transaction volume tracking
 - Low stock alerts and reporting
 - Activity monitoring
-
-### Additional Features
-- **Cycle Count & Reconciliation**: Periodic stock verification
-- **Barcode/QR Code Integration**: For product scanning
-- **Stock Forecasting**: Predictive analytics for inventory needs
 
 ## Tech Stack
 
