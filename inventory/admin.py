@@ -5,6 +5,7 @@ from .models import InventoryLog, Product
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
+    """Admin configuration for the Product model."""
     def save_model(self, request, obj, form, change):
         """
         Pass the user to the model's save method for logging.

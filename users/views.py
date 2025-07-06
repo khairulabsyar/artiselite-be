@@ -7,6 +7,7 @@ from .serializers import UserRegistrationSerializer, UserSerializer, RoleSeriali
 from .permissions import IsAdminUser
 
 class UserRegistrationView(APIView):
+    """API endpoint for user registration."""
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
@@ -16,18 +17,21 @@ class UserRegistrationView(APIView):
 
 
 class UserViewSet(viewsets.ModelViewSet):
+    """API endpoint for managing user accounts."""
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAdminUser]
 
 
 class RoleViewSet(viewsets.ModelViewSet):
+    """API endpoint for managing user roles."""
     queryset = Role.objects.all()
     serializer_class = RoleSerializer
     permission_classes = [IsAdminUser]
 
 
 class RolePermissionView(APIView):
+    """API endpoint for assigning multiple permissions to a role."""
     permission_classes = [IsAdminUser]
 
     def post(self, request, role_id):

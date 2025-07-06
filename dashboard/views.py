@@ -1,8 +1,9 @@
 from rest_framework.views import APIView
+from core.serializers import LogEntrySerializer as ActivityLogSerializer
 from rest_framework.response import Response
 from django.db.models import F
 from datetime import date, timedelta
-from .serializers import ActivityLogSerializer, TransactionVolumeSerializer
+from .serializers import TransactionVolumeSerializer
 from inventory.models import Product
 from inbound.models import Inbound
 from outbound.models import Outbound
@@ -10,6 +11,7 @@ from auditlog.models import LogEntry
 
 
 class DashboardSummary(APIView):
+    """Provides a summary of key warehouse metrics."""
     def get(self, request):
         total_items = Product.objects.filter(is_archived=False).count()
         today = date.today()
@@ -28,12 +30,14 @@ class DashboardSummary(APIView):
         })
 
 class RecentActivity(APIView):
+    """Retrieves the 20 most recent activity logs."""
     def get(self, request):
         activities = LogEntry.objects.order_by('-timestamp')[:20]
         serializer = ActivityLogSerializer(activities, many=True)
         return Response(serializer.data)
 
 class TransactionVolume(APIView):
+    """Calculates inbound and outbound transaction volume over a specified number of days."""
     def get(self, request):
         days = int(request.query_params.get('days', 7))
         end_date = date.today()
