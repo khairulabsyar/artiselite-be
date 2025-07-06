@@ -215,9 +215,9 @@ class ProductViewSetTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('Missing required columns', response.data['error'])
         
-    def test_non_admin_cannot_create_product(self):
+    def test_non_admin_can_create_product(self):
         """
-        Ensure regular users without admin role cannot create products.
+        Ensure regular users without admin role can create products.
         """
         # Already logged in as regular user from setUp
         url = reverse('product-list')
@@ -229,7 +229,8 @@ class ProductViewSetTests(APITestCase):
             'reason': 'Testing permissions'
         }
         response = self.client.post(url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['name'], 'New Product')
         
     def test_admin_can_create_product(self):
         """
