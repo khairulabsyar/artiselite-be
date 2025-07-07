@@ -22,6 +22,15 @@ class ProductViewSet(AuditLogMixin, viewsets.ModelViewSet):
     queryset = Product.objects.all().order_by('-updated_at')
     serializer_class = ProductSerializer
     permission_classes = [permissions.IsAuthenticated, AllowOperatorCreateOnly]
+    
+    def destroy(self, request, *args, **kwargs):
+        """
+        Override the default destroy method to ensure a proper 204 No Content response.
+        This method ensures we don't return any HTML or unexpected content in the response.
+        """
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def get_queryset(self):
         """
