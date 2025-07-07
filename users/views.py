@@ -2,6 +2,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated, BasePermission
 from .models import User, Role, Permission
 from .serializers import UserRegistrationSerializer, UserSerializer, RoleSerializer, RolePermissionSerializer
 from .permissions import IsAdminUser
@@ -16,11 +18,34 @@ class UserRegistrationView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class IsOwner(BasePermission):
+    """
+    Custom permission to only allow owners of an object to view or edit it.
+    """
+    def has_object_permission(self, request, view, obj):
+        return obj == request.user
+
+
 class UserViewSet(viewsets.ModelViewSet):
     """API endpoint for managing user accounts."""
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAdminUser]
+
+    def get_permissions(self):
+        """Instantiates and returns the list of permissions that this view requires."""
+        if self.action == 'me':
+            permission_classes = [IsAuthenticated]
+        elif self.action in ['retrieve', 'update', 'partial_update']:
+            permission_classes = [IsAdminUser | IsOwner]
+        else:
+            permission_classes = [IsAdminUser]
+        return [permission() for permission in permission_classes]
+
+    @action(detail=False, methods=['get'], url_path='me', url_name='user-me')
+    def me(self, request):
+        """Return the authenticated user's data."""
+        serializer = self.get_serializer(request.user)
+        return Response(serializer.data)
 
 
 class RoleViewSet(viewsets.ModelViewSet):
